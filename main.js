@@ -1,3 +1,35 @@
+const { createClient } = require('@supabase/supabase-js');
+
+require('dotenv').config();
+
+const supabaseUrl = 'https://qqzybmldrqayzaulyrkl.supabase.co'
+const supabaseKey = process.env.SUPABASE_KEY
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+//Métodos
+const InsertInventario = async (p_nombre, c_id, precio, cantidad) => {
+    const { data, error } = await supabase
+      .from('Inventario')
+      .insert([
+        { p_nombre: p_nombre, c_id:c_id, precio:precio, cantidad:cantidad},
+      ])
+      .select()
+    if (error) console.error('error', error)
+    if (data) console.log('data', data)
+}
+
+const Insert = async (c_id,nombre_producto) => {
+    const { data, error } = await supabase
+      .from('Ventas')
+      .insert([
+        { Cliente_id: c_id, Nombre:nombre_producto},
+      ])
+      .select()
+    if (error) console.error('error', error);
+    if (data) console.log('data', data);
+}
+
+
 const { Client ,LocalAuth} = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
@@ -57,7 +89,7 @@ async function insertarVenta () {
         var producto = await getMensaje();
         console.log(producto);
         // Se inserta en la base de datos la venta
-
+            await Insert(2,producto);
         //
         cantidad--;
     }
@@ -75,7 +107,8 @@ async function registrarInventario  ()  {
     var precio = await getMensaje();
     console.log(precio);
     // Se inserta en la base de datos el producto
-
+    
+    InsertInventario(producto,2,precio,cantidad);
     client.sendMessage(usuario, 'Inventario registrado');
 }
 
