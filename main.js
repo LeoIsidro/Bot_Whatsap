@@ -7,11 +7,11 @@ const supabaseKey = process.env.SUPABASE_KEY
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 //Métodos
-const InsertInventario = async (p_nombre, c_id, precio, cantidad) => {
+const InsertInventario = async (numero, codigo, cantidad, precio) => {
     const { data, error } = await supabase
-      .from('Inventario')
+      .from('inventario')
       .insert([
-        { p_nombre: p_nombre, c_id:c_id, precio:precio, cantidad:cantidad},
+        { numero: numero, codigo:codigo, cantidad:cantidad, precio:precio },
       ])
       .select()
     if (error) console.error('error', error)
@@ -57,14 +57,15 @@ client.on('disconnected', (reason) => {
 });
 
 async function getMensaje() {
-    return new Promise(resolve => {
-        client.once('message', msg => {
-            if (msg.from === usuario ) {
-                resolve(msg.body);
-            }
-        });
-    });
+  return new Promise(resolve => {
+      client.once('message', msg => {
+          if (msg.from === usuario ) {
+              resolve({ body: msg.body, from: msg.from });
+          }
+      });
+  });
 }
+
 
 var usuario='51970579052@c.us';
 
@@ -89,7 +90,7 @@ async function insertarVenta () {
         var producto = await getMensaje();
         console.log(producto);
         // Se inserta en la base de datos la venta
-            await Insert(2,producto);
+        await Insert(2,producto);
         //
         cantidad--;
     }
@@ -117,7 +118,8 @@ async function registrarInventario  ()  {
 
 async function mostrarOperaciones () {
     client.sendMessage(usuario, 'Bienvenido Usuario, que operacion deseas realizar\n 1. Consultar Inventario\n2. Registrar nueva venta \n3. Registrar Inventario\n4. Salir');
-    const opcion = await getMensaje();
+    const response = await getMensaje();
+    const opcion = response.body;
         switch (opcion) {
             case '1':
                 client.sendMessage(usuario, 'Aquí está el inventario...');
@@ -143,19 +145,38 @@ async function mostrarOperaciones () {
           } 
 }
 
+//Saber si el usuario esta registrado, consultamos en la base de datos
+const get_usuario = async (numero) => {
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('nombre, apellido').eq('numero', numero)
+  if (error){
+    console.error('error', error);
+    return;
+  } 
 
+  return data;
+}
 
 
 // Escuchando mensajes
 
 async function Inicio() {
-    var msg = await getMensaje();
-    console.log(msg);
-    while( msg !== 'Hola') {
-         msg = await getMensaje();
-    }
-    
-    mostrarOperaciones();
+  var response = await getMensaje();
+  var msg = response.body;
+  var from = response.from;
+  const usuario = await get_usuario(from);
+  if (usuario.length === 0) {
+      client.sendMessage(from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
+      return; // Reemplaza 'break' con 'return' para salir de la función
+  }
+
+  while( msg !== 'Hola') {
+       var response = await getMensaje();
+       msg = response.body;
+  }
+  
+  mostrarOperaciones();
 }
 
 
