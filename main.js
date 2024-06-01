@@ -7,26 +7,23 @@ const supabaseKey = process.env.SUPABASE_KEY
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 //Métodos
-const InsertInventario = async (numero, codigo, cantidad, precio) => {
-    const { data, error } = await supabase
-      .from('inventario')
-      .insert([
-        { numero: numero, codigo:codigo, cantidad:cantidad, precio:precio },
-      ])
-      .select()
+const InsertInventario = async (numero, codigo, cantidad) => {
+    // Actualizar la cantidad de productos en el inventario
+    const { data, error } = await supabase.rpc('Incrementar_cantidad_productos', { numero: numero , codigo: codigo, cantidad_producto: cantidad});
     if (error) console.error('error', error)
     if (data) console.log('data', data)
 }
 
 const Insert = async (c_id,nombre_producto) => {
     const { data, error } = await supabase
-      .from('Ventas')
+      .from('ventas')
       .insert([
-        { Cliente_id: c_id, Nombre:nombre_producto},
+        { numero: c_id, codigo:nombre_producto},
       ])
       .select()
     if (error) console.error('error', error);
     if (data) console.log('data', data);
+
 }
 
 
@@ -59,15 +56,13 @@ client.on('disconnected', (reason) => {
 async function getMensaje() {
   return new Promise(resolve => {
       client.once('message', msg => {
-          if (msg.from === usuario ) {
               resolve({ body: msg.body, from: msg.from });
-          }
       });
   });
 }
 
 
-var usuario='51970579052@c.us';
+var usuario;
 
 
 // Funciones de obtencion de la base de datos
@@ -79,37 +74,38 @@ async function getInventario () {
 
 async function insertarVenta () {
 
-    client.sendMessage(usuario, 'Ingrese la cantidad de productos vendidos');
+    client.sendMessage(usuario, 'Escanee los productos vendidos');
 
     // Se almacena la cantidad de productos vendidos  
-    var cantidad = await getMensaje();
-    console.log(cantidad);
+    var productos = await getMensaje();
+    var productos = productos.body;
+    console.log(productos);
+    console.log(productos.length);
+    let indice = 0;
 
-    while (cantidad>0) {
-        client.sendMessage(usuario, 'Ingrese el nombre del producto');
-        var producto = await getMensaje();
+    while (indice < productos.length) {
+        let producto = productos.slice(indice, indice + 13);
         console.log(producto);
         // Se inserta en la base de datos la venta
-        await Insert(2,producto);
-        //
-        cantidad--;
+        await Insert(usuario,producto);
+        
+        indice += 13;
     }
     client.sendMessage(usuario, 'Venta registrada');  
 }
 
 async function registrarInventario  ()  {
-    client.sendMessage(usuario, 'Ingrese el nombre del producto');
+    client.sendMessage(usuario, 'Ingrese el codigo del producto');
     var producto = await getMensaje();
+    var producto = producto.body;
     console.log(producto);
     client.sendMessage(usuario, 'Ingrese la cantidad del producto');
     var cantidad = await getMensaje();
+    var cantidad = cantidad.body;
     console.log(cantidad);
-    client.sendMessage(usuario, 'Ingrese el precio del producto');
-    var precio = await getMensaje();
-    console.log(precio);
     // Se inserta en la base de datos el producto
     
-    InsertInventario(producto,2,precio,cantidad);
+    InsertInventario(usuario, producto,cantidad);
     client.sendMessage(usuario, 'Inventario registrado');
 }
 
@@ -128,7 +124,6 @@ async function mostrarOperaciones () {
             case '2':
                 client.sendMessage(usuario, 'Registrando nueva venta...');
                 await insertarVenta();
-                mostrarOperaciones();
                 break;
             case '3':
                 client.sendMessage(usuario, 'Registrando inventario...');
@@ -137,19 +132,19 @@ async function mostrarOperaciones () {
             case '4':
                 client.sendMessage(usuario, 'Saliendo...');
                 Inicio();
-                break;
+                return;
             default:
                 client.sendMessage(usuario, 'Opción no válida, intente nuevamente');
-                mostrarOperaciones();
                 break;
-          } 
+          }
+    mostrarOperaciones();
 }
 
 //Saber si el usuario esta registrado, consultamos en la base de datos
 const get_usuario = async (numero) => {
   const { data, error } = await supabase
     .from('clientes')
-    .select('nombre, apellido').eq('numero', numero)
+    .select('numero','nombre, apellido').eq('numero', numero)
   if (error){
     console.error('error', error);
     return;
@@ -164,12 +159,18 @@ const get_usuario = async (numero) => {
 async function Inicio() {
   var response = await getMensaje();
   var msg = response.body;
+  console.log(msg);
   var from = response.from;
-  const usuario = await get_usuario(from);
-  if (usuario.length === 0) {
+  console.log(from);
+  var data = await get_usuario(from);
+  console.log(data);
+  
+
+  if (data.length === 0) {
       client.sendMessage(from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
       return; // Reemplaza 'break' con 'return' para salir de la función
   }
+  usuario = data[0].numero;
 
   while( msg !== 'Hola') {
        var response = await getMensaje();
