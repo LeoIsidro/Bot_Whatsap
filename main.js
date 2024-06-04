@@ -26,6 +26,15 @@ const Insert = async (c_id,nombre_producto) => {
 
 }
 
+const Mostrar_inventario = async (cliente) => {
+    // Consultar el inventario
+    console.log(cliente);
+    const { data, error } = await supabase.rpc('obtener_inventario', { cliente: cliente });
+    if (error) console.error('error', error);
+    if (data) console.log('data', data);
+    return data;    
+}
+
 
 const { Client ,LocalAuth} = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
@@ -68,7 +77,14 @@ var usuario;
 // Funciones de obtencion de la base de datos
 
 async function getInventario () {
-    return 'Inventario';
+    // Se obtiene el inventario de la base de datos
+    var inventario = await Mostrar_inventario(usuario);
+    var mensaje = '';
+    inventario.forEach(producto => {
+        mensaje += `Nombre: ${producto.nombre_producto} | Cantidad: ${producto.cantidad} \n`;
+    }
+    );
+    client.sendMessage(usuario, mensaje);
 }
 
 
