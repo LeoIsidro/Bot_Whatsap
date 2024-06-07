@@ -73,7 +73,12 @@ async function getMensaje() {
 
 var usuario;
 
-
+async function mostrar_nombre_producto(codigo){
+    console.log("MOSTRAR NOMBRE PRODUCTO");
+    const { data, error } = await supabase.rpc('get_nombre',{numero :codigo});
+    if (error) console.error('error', error);
+    return data[0];
+}
 // Funciones de obtencion de la base de datos
 
 async function getInventario () {
@@ -87,7 +92,6 @@ async function getInventario () {
     client.sendMessage(usuario, mensaje);
 }
 
-
 async function insertarVenta () {
 
     client.sendMessage(usuario, 'Escanee los productos vendidos');
@@ -98,16 +102,23 @@ async function insertarVenta () {
     console.log(productos);
     console.log(productos.length);
     let indice = 0;
+    let nombres = [];
 
     while (indice < productos.length) {
         let producto = productos.slice(indice, indice + 13);
         console.log(producto);
         // Se inserta en la base de datos la venta
         await Insert(usuario,producto);
-        
+        nombres.push(mostrar_nombre_producto(producto));
         indice += 13;
     }
-    client.sendMessage(usuario, 'Venta registrada');  
+    // Espera a que todas las promesas se resuelvan
+    nombres = await Promise.all(nombres);
+    nombres.forEach(nombre => {
+            console.log(nombre);
+            client.sendMessage(usuario, nombre);
+        }
+    );
 }
 
 async function registrarInventario  ()  {
@@ -122,7 +133,6 @@ async function registrarInventario  ()  {
     // Se inserta en la base de datos el producto
     
     InsertInventario(usuario, producto,cantidad);
-    client.sendMessage(usuario, 'Inventario registrado');
 }
 
 
@@ -184,7 +194,8 @@ async function Inicio() {
 
   if (data.length === 0) {
       client.sendMessage(from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
-      return; // Reemplaza 'break' con 'return' para salir de la función
+      Inicio();
+      return;
   }
   usuario = data[0].numero;
 
