@@ -135,11 +135,34 @@ async function registrarInventario  ()  {
     InsertInventario(usuario, producto,cantidad);
 }
 
+async function resumenVentas () {
+    // Se obtiene el resumen de ventas de la base de datos
+    const { data, error } = await supabase.rpc('resumenventas', { cliente: usuario });
+    if (error) console.error('error', error);
+    if (data) console.log('data', data);
+    var mensaje = '';
+    var ganancia_total = 0;
+    if (data.length === 0) {
+        client.sendMessage(usuario, 'No se han realizado ventas');
+        
+    }
+    else {
+    for (let i = 0; i < data.length; i++) {
+        mensaje += `Producto: ${data[i].producto_nombre} | Cantidad: ${data[i].cantidad} | Precio: ${data[i].precio} \n`;
+        ganancia_total += data[i].precio*data[i].cantidad;
+    }
+    client.sendMessage(usuario, mensaje);
+    client.sendMessage(usuario, `Ganancia total: ${ganancia_total}`);
+    }
+    client.sendMessage(usuario, ':)');
+
+}
+
 
 // Funciones de respuesta
 
 async function mostrarOperaciones () {
-    client.sendMessage(usuario, 'Bienvenido Usuario, que operacion deseas realizar\n 1. Consultar Inventario\n2. Registrar nueva venta \n3. Registrar Inventario\n4. Salir');
+    client.sendMessage(usuario, 'Bienvenido Usuario, que operacion deseas realizar\n 1. Consultar Inventario\n 2. Registrar nueva venta\n 3. Registrar Inventario\n 4. Resumen de ventas del dia\n 5. Salir');
     const response = await getMensaje();
     const opcion = response.body;
         switch (opcion) {
@@ -156,6 +179,10 @@ async function mostrarOperaciones () {
                 await registrarInventario();
                 break;
             case '4':
+                client.sendMessage(usuario, 'Resumen de Ventas del dia...');
+                await resumenVentas();
+                break;
+            case '5':
                 client.sendMessage(usuario, 'Saliendo...');
                 Inicio();
                 return;
@@ -217,3 +244,4 @@ client.on('qr', qr => {
 client.initialize();
 
 Inicio();
+
