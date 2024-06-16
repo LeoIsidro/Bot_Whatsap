@@ -163,7 +163,10 @@ async function resumenVentas (usuario) {
 
 async function mostrarOperaciones (usuario) {
     client.sendMessage(usuario, 'Bienvenido Usuario, que operacion deseas realizar\n 1. Consultar Inventario\n 2. Registrar nueva venta\n 3. Registrar Inventario\n 4. Resumen de ventas del dia\n 5. Salir');
-    const response = await getMensaje();
+    let response = await getMensaje();
+    while( response.from != usuario){
+        response = await getMensaje();
+    }
     const opcion = response.body;
         switch (opcion) {
             case '1':
