@@ -26,10 +26,10 @@ const Insert = async (c_id,nombre_producto) => {
 
 }
 
-const Mostrar_inventario = async (cliente) => {
+const Mostrar_inventario = async (cliente,producto) => {
     // Consultar el inventario
     console.log(cliente);
-    const { data, error } = await supabase.rpc('obtener_inventario', { cliente: cliente });
+    const { data, error } = await supabase.rpc('obtener_inventario', { cliente: cliente , producto: producto});
     if (error) console.error('error', error);
     if (data) console.log('data', data);
     return data;    
@@ -82,16 +82,23 @@ async function mostrar_nombre_producto(codigo){
 // Funciones de obtencion de la base de datos
 
 async function getInventario (usuario) {
-    // Se obtiene el inventario de la base de datos
-    var inventario = await Mostrar_inventario(usuario);
-    //console.log("Llegue");
-    var mensaje = '';
-    inventario.forEach(producto => {
-        mensaje += `Nombre: ${producto.nombre_producto} | Cantidad: ${producto.cantidad} \n`;
+
+    client.sendMessage(usuario, 'Ingrese el codigo del producto');
+    var producto = await getMensaje();
+    while( producto.from != usuario){
+        producto = await getMensaje();
     }
-    );
+    console.log(producto.body);
+    // Se obtiene el inventario de la base de datos
+    var inventario = await Mostrar_inventario(usuario,producto.body);
     //console.log("Llegue");
-    client.sendMessage(usuario, mensaje);
+    if(inventario.length === 0){
+        client.sendMessage(usuario, 'No se encuentra el producto');
+    }
+    else{
+        var mensaje = `Producto: ${inventario[0].nombre_producto} | Cantidad: ${inventario[0].cantidad} \n`;
+        client.sendMessage(usuario, mensaje);
+    }    
 }
 
 async function insertarVenta (usuario) {
@@ -99,8 +106,11 @@ async function insertarVenta (usuario) {
     client.sendMessage(usuario, 'Escanee los productos vendidos');
 
     // Se almacena la cantidad de productos vendidos  
-    var productos = await getMensaje();
-    var productos = productos.body;
+    let productos = await getMensaje();
+    while( productos.from != usuario){
+        productos = await getMensaje();
+    }
+    productos = productos.body;
     console.log(productos);
     console.log(productos.length);
     let indice = 0;
@@ -125,12 +135,18 @@ async function insertarVenta (usuario) {
 
 async function registrarInventario  (usuario)  {
     client.sendMessage(usuario, 'Ingrese el codigo del producto');
-    var producto = await getMensaje();
-    var producto = producto.body;
+    let producto = await getMensaje();
+    while( producto.from != usuario){
+        producto = await getMensaje();
+    }
+    producto = producto.body;
     console.log(producto);
     client.sendMessage(usuario, 'Ingrese la cantidad del producto');
-    var cantidad = await getMensaje();
-    var cantidad = cantidad.body;
+    let cantidad = await getMensaje();
+    while( cantidad.from != usuario){
+        cantidad = await getMensaje();
+    }
+    cantidad = cantidad.body;
     console.log(cantidad);
     // Se inserta en la base de datos el producto
     
