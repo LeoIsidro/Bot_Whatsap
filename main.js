@@ -93,11 +93,11 @@ async function getInventario (usuario) {
     var inventario = await Mostrar_inventario(usuario,producto.body);
     //console.log("Llegue");
     if(inventario.length === 0){
-        client.sendMessage(usuario, 'No se encuentra el producto');
+        await client.sendMessage(usuario, 'No se encuentra el producto');
     }
     else{
         var mensaje = `Producto: ${inventario[0].nombre_producto} | Cantidad: ${inventario[0].cantidad} \n`;
-        client.sendMessage(usuario, mensaje);
+        await client.sendMessage(usuario, mensaje);
     }    
 }
 
@@ -114,23 +114,17 @@ async function insertarVenta (usuario) {
     console.log(productos);
     console.log(productos.length);
     let indice = 0;
-    let nombres = [];
+    let nombre;
 
     while (indice < productos.length) {
         let producto = productos.slice(indice, indice + 13);
         console.log(producto);
         // Se inserta en la base de datos la venta
         await Insert(usuario,producto);
-        nombres.push(mostrar_nombre_producto(producto));
+        nombre=await mostrar_nombre_producto(producto);
+        client.sendMessage(usuario, nombre);
         indice += 13;
     }
-    // Espera a que todas las promesas se resuelvan
-    nombres = await Promise.all(nombres);
-    nombres.forEach(nombre => {
-            console.log(nombre);
-            client.sendMessage(usuario, nombre);
-        }
-    );
 }
 
 async function registrarInventario  (usuario)  {
@@ -151,6 +145,7 @@ async function registrarInventario  (usuario)  {
     // Se inserta en la base de datos el producto
     
     InsertInventario(usuario, producto,cantidad);
+    await client.sendMessage(usuario, 'Producto registrado');
 }
 
 async function resumenVentas (usuario) {
@@ -168,10 +163,10 @@ async function resumenVentas (usuario) {
         mensaje += `Producto: ${data[i].producto_nombre} | Cantidad: ${data[i].cantidad} | Precio: ${data[i].precio} \n`;
         ganancia_total += data[i].precio*data[i].cantidad;
     }
-    client.sendMessage(usuario, mensaje);
-    client.sendMessage(usuario, `Ganancia total: ${ganancia_total}`);
+    await client.sendMessage(usuario, mensaje);
+    await client.sendMessage(usuario, `Ganancia total: ${ganancia_total}`);
     }
-    client.sendMessage(usuario, ':)');
+    await client.sendMessage(usuario, ':)');
 }
 
 
@@ -186,31 +181,31 @@ async function mostrarOperaciones (usuario) {
     const opcion = response.body;
         switch (opcion) {
             case '1':
-                client.sendMessage(usuario, 'Aquí está el inventario...');
+                await client.sendMessage(usuario, 'De que producto desea el inventario...');
                 await getInventario(usuario);
                 break;
             case '2':
-                client.sendMessage(usuario, 'Registrando nueva venta...');
+                await client.sendMessage(usuario, 'Registrando nueva venta...');
                 await insertarVenta(usuario);
                 break;
             case '3':
-                client.sendMessage(usuario, 'Registrando inventario...');
+                await client.sendMessage(usuario, 'Registrando inventario...');
                 await registrarInventario(usuario);
                 break;
             case '4':
-                client.sendMessage(usuario, 'Resumen de Ventas del dia...');
+                await client.sendMessage(usuario, 'Resumen de Ventas del dia...');
                 await resumenVentas(usuario);
                 break;
             case '5':
-                client.sendMessage(usuario, 'Saliendo...');
+                await client.sendMessage(usuario, 'Saliendo...');
                 usuarios.set(usuario, { esperandoSaludo: true, data: null });
                 //Inicio();
                 return;
             default:
-                client.sendMessage(usuario, 'Opción no válida, intente nuevamente');
+                await client.sendMessage(usuario, 'Opción no válida, intente nuevamente');
                 break;
           }
-    mostrarOperaciones(usuario);
+     await mostrarOperaciones(usuario);
 }
 
 //Saber si el usuario esta registrado, consultamos en la base de datos
