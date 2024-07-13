@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { jsPDF } = require('jspdf');
+const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 require('jspdf-autotable');
@@ -8,6 +9,7 @@ require('dotenv').config();
 
 const supabaseUrl = 'https://qqzybmldrqayzaulyrkl.supabase.co'
 const supabaseKey = process.env.SUPABASE_KEY
+const emailKey = process.env.EMAIL_KEY
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 //Métodos
@@ -222,6 +224,72 @@ async function Enviar_Reporte_Mensual(usuario){
     });
 }
 
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'isidroleonardo15@gmail.com',
+        pass: emailKey
+    }
+});
+
+async function Enviar_Reporte_Mensual_Mail(){
+
+    const ventas = [
+        { fecha: '2024-06-01', producto: 'Producto A', cantidad: 10, precio: 100 },
+        { fecha: '2024-06-02', producto: 'Producto B', cantidad: 5, precio: 200 },
+        { fecha: '2024-06-03', producto: 'Producto C', cantidad: 3, precio: 150 },
+        // Agrega más datos según sea necesario
+    ];
+
+    // Crear el PDF con formato de reporte de ventas
+    const doc = new jsPDF();
+    doc.text("Reporte de Ventas Mensual", 10, 10);
+
+    // Agregar tabla de ventas
+    const columnas = ["Fecha", "Producto", "Cantidad", "Precio"];
+    const filas = ventas.map(venta => [venta.fecha, venta.producto, venta.cantidad, venta.precio]);
+
+    doc.autoTable({
+        head: [columnas],
+        body: filas,
+        startY: 20
+    });
+
+    const pdfPath = path.resolve(__dirname, 'reporte_ventas.pdf');
+    doc.save(pdfPath);
+
+    // Configuración del correo electrónico
+    const mailOptions = {
+        from: 'isidroleonardo15@@gmail.com',
+        to: 'matias.maravi@utec.edu.pe', // Reemplaza con la dirección de correo del destinatario
+        subject: 'Reporte de Ventas Mensual',
+        text: 'Adjunto encontrarás el reporte de ventas mensual.',
+        attachments: [
+            {
+                filename: 'reporte_ventas.pdf',
+                path: pdfPath
+            }
+        ]
+    };
+
+    // Enviar el correo electrónico
+    transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+            return console.error('Error al enviar el correo:', error);
+        }
+        console.log('Correo enviado: ' + info.response);
+
+        // Eliminar el archivo PDF después de enviarlo
+        fs.unlink(pdfPath, (err) => {
+            if (err) {
+                console.error('Error al eliminar el archivo PDF:', err);
+            } else {
+                console.log('Archivo PDF eliminado exitosamente');
+            }
+        });
+    });
+}
+
 // Funciones de respuesta
 
 async function mostrarOperaciones (usuario) {
@@ -249,14 +317,13 @@ async function mostrarOperaciones (usuario) {
                 await resumenVentas(usuario);
                 break;
             case '5':
-                await client.sendMessage(usuario, 'Saliendo...');
-                usuarios.set(usuario, { esperandoSaludo: true, data: null });
-                //Inicio();
-                return;
-            case '6':
                 await client.sendMessage(usuario,"Enviando Reporte Mensual");
                 await Enviar_Reporte_Mensual(usuario);
                 break;
+            case '5':
+                await client.sendMessage(usuario, 'Saliendo...');
+                usuarios.set(usuario, { esperandoSaludo: true, data: null });
+                return;
 
             default:
                 await client.sendMessage(usuario, 'Opción no válida, intente nuevamente');
@@ -346,4 +413,8 @@ client.on('message', async (msg) => {
         await client.sendMessage(msg.from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
     }
 
+});
+
+schedule.scheduleJob('0 8 1 * *', () => {
+    Enviar_Reporte_Mensual_Mail();
 });
