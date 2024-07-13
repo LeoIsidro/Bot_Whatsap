@@ -1,4 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
+const { jsPDF } = require('jspdf');
+const fs = require('fs');
+const path = require('path');
+require('jspdf-autotable');
 
 require('dotenv').config();
 
@@ -22,7 +26,7 @@ const Insert = async (c_id,nombre_producto) => {
       ])
       .select()
     if (error) console.error('error', error);
-    if (data) console.log('data', data);
+    if (data) console.log('INSERT', data);
 
 }
 
@@ -36,7 +40,7 @@ const Mostrar_inventario = async (cliente,producto) => {
 }
 
 
-const { Client ,LocalAuth} = require('whatsapp-web.js');
+const { Client ,MessageMedia} = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
 // Cliente de WhatsApp
@@ -77,13 +81,14 @@ async function mostrar_nombre_producto(codigo){
     console.log("MOSTRAR NOMBRE PRODUCTO");
     const { data, error } = await supabase.rpc('get_nombre',{numero :codigo});
     if (error) console.error('error', error);
+    // console.log(data);
     return data[0];
 }
 // Funciones de obtencion de la base de datos
 
 async function getInventario (usuario) {
 
-    client.sendMessage(usuario, 'Ingrese el codigo del producto');
+    await client.sendMessage(usuario, 'Ingrese el codigo del producto');
     var producto = await getMensaje();
     while( producto.from != usuario){
         producto = await getMensaje();
@@ -103,7 +108,7 @@ async function getInventario (usuario) {
 
 async function insertarVenta (usuario) {
 
-    client.sendMessage(usuario, 'Escanee los productos vendidos');
+    await client.sendMessage(usuario, 'Escanee los productos vendidos');
 
     // Se almacena la cantidad de productos vendidos  
     let productos = await getMensaje();
@@ -114,28 +119,32 @@ async function insertarVenta (usuario) {
     console.log(productos);
     console.log(productos.length);
     let indice = 0;
-    let nombre;
 
     while (indice < productos.length) {
+        if (productos[indice] === ' ' || productos[indice] === ',' || productos[indice] === '\n') {
+            indice++;
+            continue;
+        }
         let producto = productos.slice(indice, indice + 13);
         console.log(producto);
         // Se inserta en la base de datos la venta
         await Insert(usuario,producto);
-        nombre=await mostrar_nombre_producto(producto);
-        client.sendMessage(usuario, nombre);
+        let nombre = await mostrar_nombre_producto(producto);
+        await client.sendMessage(usuario, nombre);
         indice += 13;
     }
+    // Espera a que todas las promesas se resuelvan
 }
 
 async function registrarInventario  (usuario)  {
-    client.sendMessage(usuario, 'Ingrese el codigo del producto');
+    await client.sendMessage(usuario, 'Ingrese el codigo del producto');
     let producto = await getMensaje();
     while( producto.from != usuario){
         producto = await getMensaje();
     }
     producto = producto.body;
     console.log(producto);
-    client.sendMessage(usuario, 'Ingrese la cantidad del producto');
+    await client.sendMessage(usuario, 'Ingrese la cantidad del producto');
     let cantidad = await getMensaje();
     while( cantidad.from != usuario){
         cantidad = await getMensaje();
@@ -145,7 +154,6 @@ async function registrarInventario  (usuario)  {
     // Se inserta en la base de datos el producto
     
     InsertInventario(usuario, producto,cantidad);
-    await client.sendMessage(usuario, 'Producto registrado');
 }
 
 async function resumenVentas (usuario) {
@@ -156,7 +164,7 @@ async function resumenVentas (usuario) {
     var mensaje = '';
     var ganancia_total = 0;
     if (data.length === 0) {
-        client.sendMessage(usuario, 'No se han realizado ventas');
+        await client.sendMessage(usuario, 'No se han realizado ventas');
     }
     else {
     for (let i = 0; i < data.length; i++) {
@@ -169,11 +177,55 @@ async function resumenVentas (usuario) {
     await client.sendMessage(usuario, ':)');
 }
 
+async function Enviar_Reporte_Mensual(usuario){
+
+    const ventas = [
+        { fecha: '2024-06-01', producto: 'Producto A', cantidad: 10, precio: 100 },
+        { fecha: '2024-06-02', producto: 'Producto B', cantidad: 5, precio: 200 },
+        { fecha: '2024-06-03', producto: 'Producto C', cantidad: 3, precio: 150 },
+        // Agrega más datos según sea necesario
+    ];
+
+    // Crear el PDF con formato de reporte de ventas
+    const doc = new jsPDF();
+    doc.text("Reporte de Ventas Mensual", 10, 10);
+
+    // Agregar tabla de ventas
+    const columnas = ["Fecha", "Producto", "Cantidad", "Precio"];
+    const filas = ventas.map(venta => [venta.fecha, venta.producto, venta.cantidad, venta.precio]);
+
+    doc.autoTable({
+        head: [columnas],
+        body: filas,
+        startY: 20
+    });
+
+    const pdfPath = path.resolve(__dirname, 'reporte_ventas.pdf');
+    doc.save(pdfPath);
+
+    // Leer el archivo PDF
+    const media = MessageMedia.fromFilePath(pdfPath);
+
+    await client.sendMessage(usuario, media).then(response => {
+        console.log('Archivo PDF enviado exitosamente');
+
+        // Eliminar el archivo PDF
+        fs.unlink(pdfPath, (err) => {
+            if (err) {
+                console.error('Error al eliminar el archivo PDF:', err);
+            } else {
+                console.log('Archivo PDF eliminado exitosamente');
+            }
+        });
+    }).catch(error => {
+        console.error('Error al enviar el archivo PDF:', error);
+    });
+}
 
 // Funciones de respuesta
 
 async function mostrarOperaciones (usuario) {
-    client.sendMessage(usuario, 'Bienvenido Usuario, que operacion deseas realizar\n 1. Consultar Inventario\n 2. Registrar nueva venta\n 3. Registrar Inventario\n 4. Resumen de ventas del dia\n 5. Salir');
+    await client.sendMessage(usuario, 'Bienvenido Usuario, que operacion deseas realizar\n 1. Consultar Inventario\n 2. Registrar nueva venta\n 3. Registrar Inventario\n 4. Resumen de ventas del dia\n 5. Salir');
     let response = await getMensaje();
     while( response.from != usuario){
         response = await getMensaje();
@@ -181,7 +233,7 @@ async function mostrarOperaciones (usuario) {
     const opcion = response.body;
         switch (opcion) {
             case '1':
-                await client.sendMessage(usuario, 'De que producto desea el inventario...');
+                await client.sendMessage(usuario, 'Aquí está el inventario...');
                 await getInventario(usuario);
                 break;
             case '2':
@@ -201,11 +253,16 @@ async function mostrarOperaciones (usuario) {
                 usuarios.set(usuario, { esperandoSaludo: true, data: null });
                 //Inicio();
                 return;
+            case '6':
+                await client.sendMessage(usuario,"Enviando Reporte Mensual");
+                await Enviar_Reporte_Mensual(usuario);
+                break;
+
             default:
                 await client.sendMessage(usuario, 'Opción no válida, intente nuevamente');
                 break;
           }
-     await mostrarOperaciones(usuario);
+    await mostrarOperaciones(usuario);
 }
 
 //Saber si el usuario esta registrado, consultamos en la base de datos
@@ -237,7 +294,7 @@ async function Inicio() {
   console.log(data);
   
   if (data) {
-      client.sendMessage(from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
+      await client.sendMessage(from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
       Inicio();
       return;
   }
@@ -286,8 +343,7 @@ client.on('message', async (msg) => {
         usuarios.set(from, estadoUsuario);
     }
     else{
-        client.sendMessage(msg.from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
+        await client.sendMessage(msg.from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
     }
 
 });
-
