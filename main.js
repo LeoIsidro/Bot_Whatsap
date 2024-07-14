@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { jsPDF } = require('jspdf');
 const nodemailer = require('nodemailer');
+const schedule = require('node-schedule');
 const fs = require('fs');
 const path = require('path');
 require('jspdf-autotable');
@@ -105,7 +106,8 @@ async function getInventario (usuario) {
     else{
         var mensaje = `Producto: ${inventario[0].nombre_producto} | Cantidad: ${inventario[0].cantidad} \n`;
         await client.sendMessage(usuario, mensaje);
-    }    
+    }
+
 }
 
 async function insertarVenta (usuario) {
@@ -160,68 +162,59 @@ async function registrarInventario  (usuario)  {
 
 async function resumenVentas (usuario) {
     // Se obtiene el resumen de ventas de la base de datos
-    const { data, error } = await supabase.rpc('resumenventas', { cliente: usuario });
+    const { data, error } = await supabase.rpc('obtener_ventas_diarias', { cliente: usuario });
     if (error) console.error('error', error);
     if (data) console.log('data', data);
-    var mensaje = '';
+    
     var ganancia_total = 0;
+
     if (data.length === 0) {
         await client.sendMessage(usuario, 'No se han realizado ventas');
     }
     else {
-    for (let i = 0; i < data.length; i++) {
-        mensaje += `Producto: ${data[i].producto_nombre} | Cantidad: ${data[i].cantidad} | Precio: ${data[i].precio} \n`;
-        ganancia_total += data[i].precio*data[i].cantidad;
-    }
-    await client.sendMessage(usuario, mensaje);
-    await client.sendMessage(usuario, `Ganancia total: ${ganancia_total}`);
-    }
-    await client.sendMessage(usuario, ':)');
-}
+        console.log(data);
+        for (let i = 0; i < data.length; i++) {
+            ganancia_total += data[i].precio_venta*data[i].cantidad - data[i].precio_compra*data[i].cantidad;
+        }
+    
+        // Crear el PDF con formato de reporte de ventas
+        const doc = new jsPDF();
+        doc.text("Reporte de Ventas", 10, 10);
+        const columnas = ["Producto", "Cantidad", "Precio_compra", "Precio_venta"];
+        const filas = data.map(venta => [venta.nombre_producto, venta.cantidad, venta.precio_compra, venta.precio_venta]);
 
-async function Enviar_Reporte_Mensual(usuario){
-
-    const ventas = [
-        { fecha: '2024-06-01', producto: 'Producto A', cantidad: 10, precio: 100 },
-        { fecha: '2024-06-02', producto: 'Producto B', cantidad: 5, precio: 200 },
-        { fecha: '2024-06-03', producto: 'Producto C', cantidad: 3, precio: 150 },
-        // Agrega más datos según sea necesario
-    ];
-
-    // Crear el PDF con formato de reporte de ventas
-    const doc = new jsPDF();
-    doc.text("Reporte de Ventas Mensual", 10, 10);
-
-    // Agregar tabla de ventas
-    const columnas = ["Fecha", "Producto", "Cantidad", "Precio"];
-    const filas = ventas.map(venta => [venta.fecha, venta.producto, venta.cantidad, venta.precio]);
-
-    doc.autoTable({
-        head: [columnas],
-        body: filas,
-        startY: 20
-    });
-
-    const pdfPath = path.resolve(__dirname, 'reporte_ventas.pdf');
-    doc.save(pdfPath);
-
-    // Leer el archivo PDF
-    const media = MessageMedia.fromFilePath(pdfPath);
-
-    await client.sendMessage(usuario, media).then(response => {
-        console.log('Archivo PDF enviado exitosamente');
-
-        // Eliminar el archivo PDF
-        fs.unlink(pdfPath, (err) => {
-            if (err) {
-                console.error('Error al eliminar el archivo PDF:', err);
-            } else {
-                console.log('Archivo PDF eliminado exitosamente');
-            }
+        doc.autoTable({
+            head: [columnas],
+            body: filas,
+            startY: 20
         });
-    }).catch(error => {
-        console.error('Error al enviar el archivo PDF:', error);
-    });
+
+        doc.text(`Ganancia total: ${ganancia_total}`, 10, doc.autoTable.previous.finalY + 10);
+
+        const pdfPath = path.resolve(__dirname, 'reporte_ventas.pdf');
+
+        doc.save(pdfPath);
+
+        // Leer el archivo PDF
+        const media = MessageMedia.fromFilePath(pdfPath);
+
+        await client.sendMessage(usuario, media).then(response => {
+            console.log('Archivo PDF enviado exitosamente');
+
+            // Eliminar el archivo PDF
+            fs.unlink(pdfPath, (err) => {
+                if (err) {
+                    console.error('Error al eliminar el archivo PDF:', err);
+                } else {
+                    console.log('Archivo PDF eliminado exitosamente');
+                }
+            });
+        }).catch(error => {
+            console.error('Error al enviar el archivo PDF:', error);
+        });
+
+    }
+        await client.sendMessage(usuario, ':)');
 }
 
 const transporter = nodemailer.createTransport({
@@ -246,8 +239,9 @@ async function Enviar_Reporte_Mensual_Mail(){
     doc.text("Reporte de Ventas Mensual", 10, 10);
 
     // Agregar tabla de ventas
-    const columnas = ["Fecha", "Producto", "Cantidad", "Precio"];
-    const filas = ventas.map(venta => [venta.fecha, venta.producto, venta.cantidad, venta.precio]);
+    const columnas = ["Producto", "Cantidad", "Precio_compra", "Precio_venta"];
+    const filas = data.map(venta => [venta.nombre_producto, venta.cantidad, venta.precio_compra, venta.precio_venta]);
+
 
     doc.autoTable({
         head: [columnas],
@@ -255,7 +249,7 @@ async function Enviar_Reporte_Mensual_Mail(){
         startY: 20
     });
 
-    const pdfPath = path.resolve(__dirname, 'reporte_ventas.pdf');
+    const pdfPath = path.resolve(__dirname, 'reporte_ventas_mensual.pdf');
     doc.save(pdfPath);
 
     // Configuración del correo electrónico
@@ -266,7 +260,7 @@ async function Enviar_Reporte_Mensual_Mail(){
         text: 'Adjunto encontrarás el reporte de ventas mensual.',
         attachments: [
             {
-                filename: 'reporte_ventas.pdf',
+                filename: 'reporte_ventas_mensual.pdf',
                 path: pdfPath
             }
         ]
@@ -309,16 +303,12 @@ async function mostrarOperaciones (usuario) {
                 await insertarVenta(usuario);
                 break;
             case '3':
-                await client.sendMessage(usuario, 'Registrando inventario...');
+                await client.sendMessage(usuario, 'Actualizando inventario...');
                 await registrarInventario(usuario);
                 break;
             case '4':
                 await client.sendMessage(usuario, 'Resumen de Ventas del dia...');
                 await resumenVentas(usuario);
-                break;
-            case '5':
-                await client.sendMessage(usuario,"Enviando Reporte Mensual");
-                await Enviar_Reporte_Mensual(usuario);
                 break;
             case '5':
                 await client.sendMessage(usuario, 'Saliendo...');
@@ -340,44 +330,19 @@ const get_usuario = async (numero) => {
   if (error){
     console.error('error', error);
     return;
-  } 
-
-  return 1;
+  }
+  if (data.length > 0){
+    return 1;
+  }
+  else{
+    return 0;
+  }
 }
 
 
 // Escuchando mensajes
 
 const usuarios = new Map();
-
-async function Inicio() {
-  
-  var response = await getMensaje();
-  var msg = response.body;
-  console.log(msg);
-  var from = response.from;
-  console.log(from);
-  var data = await get_usuario(from);
-  console.log(data);
-  
-  if (data) {
-      await client.sendMessage(from, 'No está registrado en el sistema, por favor comuníquese con el administrador');
-      Inicio();
-      return;
-  }
-  
-  //usuario = data[0].numero;
-  
-  while( msg !== 'Hola') {
-       var response = await getMensaje();
-       msg = response.body;
-  }
-  
-  mostrarOperaciones();
-}
-
-
-
 
 client.on('qr', qr => {
     qrcode.generate(qr, {small: true});
@@ -389,7 +354,9 @@ client.initialize();
 
 client.on('message', async (msg) => {
 
-    if( get_usuario(msg.from)){
+    var usu= await get_usuario(msg.from);
+    if(usu){
+        console.log(usu);
         const from = msg.from;
         // Verificar si el usuario ya está siendo rastreado
         if (!usuarios.has(from)) {
@@ -416,5 +383,11 @@ client.on('message', async (msg) => {
 });
 
 schedule.scheduleJob('0 8 1 * *', () => {
-    Enviar_Reporte_Mensual_Mail();
+    const fechaActualPeru = new Date().toLocaleString("es-PE", { timeZone: "America/Lima" });
+    const fechaPeru = new Date(fechaActualPeru); 
+
+    const mes = fechaPeru.getMonth() + 1; // +1 porque getMonth() devuelve un rango de 0 a 11
+    const ano = fechaPeru.getFullYear();
+
+    Enviar_Reporte_Mensual_Mail(mes,ano);
 });
