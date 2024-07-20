@@ -14,9 +14,9 @@ const emailKey = process.env.EMAIL_KEY
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 //Métodos
-const InsertInventario = async (numero, codigo, cantidad) => {
+const InsertInventario = async (numero, codigo, cantidad,precio_venta,precio_compra) => {
     // Actualizar la cantidad de productos en el inventario
-    const { data, error } = await supabase.rpc('Incrementar_cantidad_productos', { numero: numero , codigo: codigo, cantidad_producto: cantidad});
+    const { data, error } = await supabase.rpc('update_inventario', { numero: numero , codigo: codigo, cantidad_producto: cantidad,precio_compra_nue:precio_compra,precio_venta_nue:precio_venta});
     if (error) console.error('error', error)
     if (data) console.log('data', data)
 }
@@ -156,8 +156,24 @@ async function registrarInventario  (usuario)  {
     cantidad = cantidad.body;
     console.log(cantidad);
     // Se inserta en la base de datos el producto
-    
-    InsertInventario(usuario, producto,cantidad);
+    await client.sendMessage(usuario, 'Ingrese el precio de compra');
+    let precio_compra = await getMensaje();
+    while( precio_compra.from != usuario){
+        precio_compra = await getMensaje();
+    }
+    precio_compra = precio_compra.body;
+    console.log(precio_compra);
+
+    await client.sendMessage(usuario, 'Ingrese el precio de venta');
+    let precio_venta = await getMensaje();
+    while( precio_venta.from != usuario){
+        precio_venta = await getMensaje();
+    }
+    precio_venta = precio_venta.body;
+    console.log(precio_venta);
+
+
+    await InsertInventario(usuario, producto,cantidad,precio_venta,precio_compra);
 }
 
 async function resumenVentas (usuario) {
